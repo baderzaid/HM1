@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+<head><title>Dashboard</title></head>
+<body>
+    <h2>Welcome {{ user }} ({{ role }})</h2>
+    {% if role == 'admin' %}
+        <p>Admin privileges enabled.</p>
+    {% else %}
+        <p>You are a standard user.</p>
+    {% endif %}
+    <a href="/logout">Logout</a>
+</body>
+</html>
