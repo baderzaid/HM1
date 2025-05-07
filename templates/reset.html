@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Secure Login</title>
+    <title>Reset Password</title>
     <style>
         body {
             background: linear-gradient(to right, #74ebd5, #ACB6E5);
@@ -13,46 +13,31 @@
             height: 100vh;
             margin: 0;
         }
-        .login-container {
+        .container {
             background: white;
-            padding: 2rem 3rem;
+            padding: 2rem;
             border-radius: 15px;
             box-shadow: 0 10px 20px rgba(0,0,0,0.2);
             width: 300px;
             text-align: center;
         }
-        .login-container h2 {
-            margin-bottom: 1.5rem;
-            color: #333;
-        }
-        .login-container input[type="text"],
-        .login-container input[type="password"] {
+        input {
             width: 100%;
             padding: 10px;
             margin: 0.5rem 0;
             border: 1px solid #ccc;
             border-radius: 8px;
         }
-        .login-container button {
+        button {
             width: 100%;
             padding: 10px;
             margin-top: 1rem;
-            background-color: #4CAF50;
+            background-color: #f44336;
             border: none;
             color: white;
             border-radius: 8px;
             font-weight: bold;
             cursor: pointer;
-        }
-        .login-container button:hover {
-            background-color: #45a049;
-        }
-        .login-container a {
-            display: block;
-            margin-top: 1rem;
-            color: #555;
-            text-decoration: none;
-            font-size: 0.9rem;
         }
         .error {
             color: red;
@@ -61,14 +46,13 @@
     </style>
 </head>
 <body>
-    <div class="login-container">
-        <h2>Login</h2>
-        <form method="POST" action="/login">
-            <input type="text" name="username" placeholder="Username" required>
-            <input type="password" name="password" placeholder="Password" required>
-            <button type="submit">Log In</button>
+    <div class="container">
+        <h2>Reset Password</h2>
+        <form method="POST" action="/reset">
+            <input type="text" name="username" placeholder="Enter your username" required>
+            <input type="password" name="new_password" placeholder="New Password" required>
+            <button type="submit">Reset Password</button>
         </form>
-        <a href="/reset">Forgot your password?</a>
         {% with messages = get_flashed_messages() %}
             {% for msg in messages %}
                 <div class="error">{{ msg }}</div>

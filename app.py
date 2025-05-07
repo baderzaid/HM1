@@ -1,118 +1,185 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, flash
 import sqlite3
 import hashlib
+from flask import session
+import re
 import os
 
+
 app = Flask(__name__)
-app.secret_key = 'super_secret_key'
-DB = 'users.db'
+app.secret_key = 'your_secret_key'
 
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
-
+# Ensure users table exists
 def init_db():
-    with sqlite3.connect(DB) as conn:
-        with open('schema.sql') as f:
-            conn.executescript(f.read())
+    if os.path.exists("users.db"):
+        os.remove("users.db")
 
-        users = [
-            ("admin", "admin123", "admin"),
-            ("bader", "bader123", "user"),
-            ("zaid", "zaid123", "user"),
-            ("yazan", "yazan123", "user"),
-            ("sara", "sara123", "user"),
-            ("nada", "nada123", "user"),
-            ("ahmad", "ahmad123", "admin"),
-            ("mhmd", "mhmd123", "user"),
-            ("wasem", "wasem123", "user"),
-            ("emad", "emad123", "user"),
-        ]
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+    c.execute('''
+    CREATE TABLE users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        role TEXT NOT NULL,
+        first_name TEXT NOT NULL,
+        last_name TEXT NOT NULL,
+        national_id TEXT NOT NULL,
+        credit_card TEXT NOT NULL,
+        valid_date TEXT NOT NULL,
+        cvc TEXT NOT NULL
+    )
+''')
+    admin_pass = hashlib.sha256("admin123".encode()).hexdigest()
+    c.execute('INSERT INTO users (username, password, role, first_name, last_name, national_id, credit_card, valid_date, cvc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    ('admin', admin_pass, 'admin', 'Israeli', 'Israeili', '123456789', '1234 5567 8901 2345', '12/32', '123'))
 
-        for i, (u, p, r) in enumerate(users, start=1):
-            conn.execute("INSERT OR IGNORE INTO users (id, username, password, role) VALUES (?, ?, ?, ?)",
-                         (i, u, hash_password(p), r))
+    for i in range(1, 10):
+        user_pass = hashlib.sha256(f"user{i}pass".encode()).hexdigest()
+        c.execute('''
+            INSERT INTO users (username, password, role, first_name, last_name, national_id, credit_card, valid_date, cvc)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            f"user{i}", user_pass, 'user',
+            f"User{i}", f"Last{i}", f"12345678{i}",
+            f"4321 8765 2109 000{i}", "11/30", "111"
+        ))
+    conn.commit()
+    conn.close()
 
-        cards = [
-            ("Israeli", "Israeili", "123456789", "1234 5567 8901 2345", "12/32", "123"),
-            ("bader", "zaid", "987654321", "1111 2222 3333 4444", "11/30", "456"),
-            ("zaid", "zaid", "456789123", "5555 6666 7777 8888", "10/28", "789"),
-            ("yazan", "zaid", "321654987", "9999 0000 1111 2222", "09/26", "321"),
-            ("sara", "zaid", "741852963", "3333 4444 5555 6666", "08/27", "147"),
-            ("nada", "zaid", "852963741", "7777 8888 9999 0000", "07/29", "258"),
-            ("ahmad", "zaid", "159357258", "2468 1357 8642 7531", "06/31", "369"),
-            ("mhmd", "kabha", "357951456", "1357 2468 3579 4680", "05/25", "951"),
-            ("waseem", "abo helal", "258456123", "4321 8765 2109 6543", "04/24", "753"),
-            ("emad", "khateeb", "951753852", "6543 2109 8765 4321", "03/23", "159"),
-        ]
+...
 
-        for i, card in enumerate(cards, start=1):
-            conn.execute("""
-                INSERT OR IGNORE INTO credit_cards
-                (user_id, first_name, last_name, id_number, card_number, valid_date, cvc)
-                VALUES (?, ?, ?, ?, ?, ?, ?)""", (i, *card))
+@app.route('/signup', methods=['POST'])
+def signup():
+    username = request.form['username']
+    password = request.form['password']
+    first_name = request.form['first_name']
+    last_name = request.form['last_name']
+    national_id = request.form['national_id']
+    credit_card = request.form['credit_card']
+    valid_date = request.form['valid_date']
+    cvc = request.form['cvc']
 
-@app.route('/')
-def home():
-    return render_template('login.html')
+    # Regex validations
+    if not re.fullmatch(r'[A-Z][a-z]+', first_name):
+        flash("Invalid first name.")
+        return redirect('/')
+    if not re.fullmatch(r'[A-Z][a-z]+', last_name):
+        flash("Invalid last name.")
+        return redirect('/')
+    if not re.fullmatch(r'\d{9}', national_id):
+        flash("Invalid national ID.")
+        return redirect('/')
+    if not re.fullmatch(r'\d{4} \d{4} \d{4} \d{4}', credit_card):
+        flash("Invalid credit card format.")
+        return redirect('/')
+    if not re.fullmatch(r'(0[1-9]|1[0-2])/\d{2}', valid_date):
+        flash("Invalid valid date format.")
+        return redirect('/')
+    if not re.fullmatch(r'\d{3}', cvc):
+        flash("Invalid CVC.")
+        return redirect('/')
+
+    hashed_password = hashlib.sha256(password.encode()).hexdigest()
+
+    try:
+        conn = sqlite3.connect('users.db')
+        c = conn.cursor()
+        c.execute('INSERT INTO users (username, password, role, first_name, last_name, national_id, credit_card, valid_date, cvc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                  (username, hashed_password, 'user', first_name, last_name, national_id, credit_card, valid_date, cvc))
+        conn.commit()
+        conn.close()
+        flash('Account created! You can now log in.')
+    except sqlite3.IntegrityError:
+        flash('Username already exists.')
+
+    return redirect('/')
 
 @app.route('/login', methods=['POST'])
 def login():
-    username = request.form['username']
-    password = hash_password(request.form['password'])
+    username_input = request.form['username']
+    password_input = request.form['password']
 
-    with sqlite3.connect(DB) as conn:
-        # ⚠️ Vulnerable query for SQL Injection
-        query = f"SELECT * FROM users WHERE username='{username}' AND password='{password}'"
-        user = conn.execute(query).fetchone()
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
 
-        if user:
-            session['user'] = user[1]
-            session['role'] = user[3]
-            session['user_id'] = user[0]
-            return redirect(url_for('dashboard'))
+    is_injection = "' OR 1=1--" in password_input
+
+    if is_injection:
+        query = f"SELECT * FROM users WHERE username='{username_input}' AND password='{password_input}'"
+    else:
+        hashed_password = hashlib.sha256(password_input.encode()).hexdigest()
+        query = f"SELECT * FROM users WHERE username='{username_input}' AND password='{hashed_password}'"
+
+    print("Running query:", query)
+
+    try:
+        c.execute(query)
+        user = c.fetchone()
+    except Exception as e:
+        conn.close()
+        flash(f'SQL Error: {e}')
+        return redirect('/')
+
+    conn.close()
+
+    if user:
+        session['username'] = user[1]
+        session['role'] = user[3]
+        return redirect('/admin_panel')
+    else:
+        flash('Invalid username or password.')
+        return redirect('/')
+
+
+@app.route('/')
+def index():
+    return render_template('login_signup.html')
+
+@app.route('/reset', methods=['GET', 'POST'])
+def reset_password():
+    if request.method == 'POST':
+        username = request.form['username']
+        new_password = request.form['new_password']
+        hashed_password = hashlib.sha256(new_password.encode()).hexdigest()
+
+        conn = sqlite3.connect('users.db')
+        c = conn.cursor()
+        c.execute('UPDATE users SET password=? WHERE username=?', (hashed_password, username))
+        if c.rowcount == 0:
+            flash('Username not found.')
         else:
-            flash("Invalid login")
-            return redirect(url_for('home'))
+            flash('Password has been reset.')
+        conn.commit()
+        conn.close()
+        return redirect('/')
+    return render_template('reset.html')
 
-@app.route('/dashboard')
-def dashboard():
-    if 'user' not in session:
-        return redirect(url_for('home'))
+@app.route('/admin_panel')
+def admin_panel():
+    if 'username' not in session:
+        return redirect('/')
 
-    cards = []
-    if session['role'] == 'admin':
-        with sqlite3.connect(DB) as conn:
-            cards = conn.execute("""
-                SELECT u.username, c.first_name, c.last_name, c.id_number,
-                       c.card_number, c.valid_date, c.cvc
-                FROM credit_cards c JOIN users u ON u.id = c.user_id
-            """).fetchall()
-    return render_template('dashboard.html', user=session['user'], role=session['role'], cards=cards)
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
 
-@app.route('/logout')
-def logout():
-    session.clear()
-    return redirect(url_for('home'))
+    if session.get('role') == 'admin':
+        c.execute('SELECT username, role, first_name, last_name, national_id, credit_card, valid_date, cvc FROM users')
+        users = c.fetchall()
+        result = "<h2>All Users</h2><ul>"
+        for u in users:
+            result += f"<li>{u}</li>"
+        result += "</ul>"
+    else:
+        c.execute('SELECT username, role, first_name, last_name, national_id, credit_card, valid_date, cvc FROM users WHERE username=?', (session['username'],))
+        user = c.fetchone()
+        result = "<h2>Your Info</h2><ul>"
+        result += f"<li>{user}</li>"
+        result += "</ul>"
 
-@app.route('/reset')
-def reset():
-    return render_template('reset_password.html')
-
-@app.route('/new-password', methods=['POST'])
-def new_password():
-    username = request.form['username']
-    new_pass = hash_password(request.form['new_password'])
-
-    with sqlite3.connect(DB) as conn:
-        user = conn.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
-        if user:
-            conn.execute("UPDATE users SET password=? WHERE username=?", (new_pass, username))
-            flash("Password updated")
-        else:
-            flash("User not found")
-    return redirect(url_for('home'))
+    conn.close()
+    return result
 
 if __name__ == '__main__':
-    if not os.path.exists(DB):
-        init_db()
+    init_db()
     app.run(debug=True)
